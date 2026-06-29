@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
+import 'customer_detail_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
@@ -196,8 +197,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Preview for ${customer.name}')),
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CustomerDetailScreen(
+                  
+                ),
+              ),
             );
           },
           child: Padding(

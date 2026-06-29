@@ -4,6 +4,7 @@ import 'screens/monthly_report_screen.dart';
 import 'screens/customer_list_screen.dart';
 import 'screens/backup_restore_screen.dart';
 
+
 void main() {
   runApp(const MyApp());
 }
@@ -20,7 +21,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
       ),
-      home: const BackupRestoreScreen(),
+      home: const CustomerListScreen(),
     );
   }
 }
