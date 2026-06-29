@@ -29,11 +29,11 @@ class _MockCustomer {
   });
 
   bool hasJoinedOn(DateTime date) {
-    return joinedDates.any((item) => _sameDay(item, date));
+    return true;
   }
 
   bool isPausedOn(DateTime date) {
-    return pausedDates.any((item) => _sameDay(item, date));
+    return false;
   }
 
   static bool _sameDay(DateTime a, DateTime b) {
@@ -49,8 +49,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<_MockCustomer> _customers = [
     _MockCustomer(
       id: '1',
-      name: 'Asha Khan',
-      phone: '9876543210',
+      name: 'Ahmedullah',
+      phone: '03001234567',
       address: 'Main Road',
       defaultQuantity: 2.0,
       joinedDates: [DateTime(2026, 6, 1)],
@@ -58,8 +58,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
     _MockCustomer(
       id: '2',
-      name: 'Ravi Sharma',
-      phone: '9123456780',
+      name: 'Hanzala',
+      phone: '03009876543',
       address: 'Park Street',
       defaultQuantity: 1.5,
       joinedDates: [DateTime(2026, 6, 1)],
@@ -67,8 +67,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
     _MockCustomer(
       id: '3',
-      name: 'Neha Verma',
-      phone: '9988776655',
+      name: 'Ayyan',
+      phone: '92388776655',
       address: 'Lake View',
       defaultQuantity: 3.0,
       joinedDates: [DateTime(2026, 6, 1)],
@@ -76,8 +76,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
     _MockCustomer(
       id: '4',
-      name: 'Kiran Patel',
-      phone: '9765432109',
+      name: 'huzaifa',
+      phone: '92365432109',
       address: 'Old Town',
       defaultQuantity: 2.5,
       joinedDates: [DateTime(2026, 6, 1)],
