@@ -258,6 +258,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
         controller: _tabController,
         children: [
           _buildOverviewTab(context, remainingBalance, paymentStatus, badgeColor),
+          _buildDeliveryLogTab(context),
+          _buildPaymentsTab(context),
+          _buildPauseTab(context),
+          _buildInvoiceTab(context),
         ],
       ),
     );
@@ -781,7 +785,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
       ),
     );
   }
-  
+
   //Pause Tab
   Widget _buildPauseTab(BuildContext context) {
     final ongoingPauses = _activeCustomer.pausePeriods.where((p) => p.endDate == null).toList();
