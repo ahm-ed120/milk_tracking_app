@@ -781,4 +781,483 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
       ),
     );
   }
+  
+  //Pause Tab
+  Widget _buildPauseTab(BuildContext context) {
+    final ongoingPauses = _activeCustomer.pausePeriods.where((p) => p.endDate == null).toList();
+    final finishedPauses = _activeCustomer.pausePeriods.where((p) => p.endDate != null).toList()..sort((a, b) => b.startDate.compareTo(a.startDate));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ongoing Suspensions', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (ongoingPauses.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.statusPartial.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.statusPartial.withOpacity(0.4), width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const CircleAvatar(backgroundColor: AppTheme.statusPartial, foregroundColor: Colors.white, child: Icon(Icons.pause)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('AUTO-GENERATION IS PAUSED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.statusPartial)),
+                              const SizedBox(height: 2),
+                              Text('Paused since: ${DateFormat('d MMMM y').format(ongoingPauses.first.startDate)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () => _showResumeDialog(context),
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('Resume Milk Delivery Today'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusPaid, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 44)),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.statusPaid.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.statusPaid.withOpacity(0.3), width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const CircleAvatar(backgroundColor: AppTheme.statusPaid, foregroundColor: Colors.white, child: Icon(Icons.check)),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('CUSTOMER ACTIVE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.statusPaid)),
+                              SizedBox(height: 2),
+                              Text('Milk delivered automatically every day.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () => _showPauseDialog(context),
+                      icon: const Icon(Icons.pause),
+                      label: const Text('Pause Milk Deliveries...'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusPartial, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 44)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 32),
+            Text('Historical Suspension Log', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (finishedPauses.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text('No historical pause logs recorded.', style: TextStyle(color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight)),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: finishedPauses.length,
+                itemBuilder: (context, index) {
+                  final pause = finishedPauses[index];
+                  final days = pause.endDate!.difference(pause.startDate).inDays + 1;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: AppTheme.glassCard(context),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                      leading: const Icon(Icons.history, color: Colors.grey),
+                      title: Text('Paused for $days days', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('${DateFormat('d MMM').format(pause.startDate)} → ${DateFormat('d MMM y').format(pause.endDate!)}', style: const TextStyle(fontSize: 12)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline, color: AppTheme.statusUnpaid, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _activeCustomer.pausePeriods.remove(pause);
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPauseDialog(BuildContext context) {
+    DateTime pauseStart = DateTime.now();
+    final dateController = TextEditingController(text: DateFormat('d MMMM y').format(pauseStart));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Pause Milk Deliveries'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select starting date for pausing the deliveries:'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: dateController,
+                readOnly: true,
+                decoration: const InputDecoration(labelText: 'Pause Start Date', prefixIcon: Icon(Icons.calendar_month)),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: pauseStart,
+                    firstDate: _activeCustomer.joinDate,
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                    builder: (context, child) => Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: const ColorScheme.dark(
+                          primary: AppTheme.primary,
+                          onPrimary: Colors.white,
+                          surface: AppTheme.cardDark,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) {
+                    setModalState(() {
+                      pauseStart = picked;
+                      dateController.text = DateFormat('d MMMM y').format(pauseStart);
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _activeCustomer = _activeCustomer.copyWith(
+                    pausePeriods: [
+                      ..._activeCustomer.pausePeriods,
+                      _MockPausePeriod(id: DateTime.now().millisecondsSinceEpoch.toString(), startDate: pauseStart),
+                    ],
+                  );
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusPartial),
+              child: const Text('Confirm Pause'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showResumeDialog(BuildContext context) {
+    DateTime resumeDate = DateTime.now();
+    final dateController = TextEditingController(text: DateFormat('d MMMM y').format(resumeDate));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Resume Deliveries'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select date when the customer resumes milk delivery:'),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: dateController,
+                readOnly: true,
+                decoration: const InputDecoration(labelText: 'Resume Date', prefixIcon: Icon(Icons.play_arrow)),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: resumeDate,
+                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                    builder: (context, child) => Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: const ColorScheme.dark(
+                          primary: AppTheme.primary,
+                          onPrimary: Colors.white,
+                          surface: AppTheme.cardDark,
+                          onSurface: Colors.white,
+                        ),
+                      ),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) {
+                    setModalState(() {
+                      resumeDate = picked;
+                      dateController.text = DateFormat('d MMMM y').format(resumeDate);
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  final ongoing = _activeCustomer.pausePeriods.where((p) => p.endDate == null).toList();
+                  if (ongoing.isNotEmpty) {
+                    ongoing.last.endDate = resumeDate;
+                  }
+                });
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusPaid),
+              child: const Text('Resume Now'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  //Invoice Tab
+  Widget _buildInvoiceTab(BuildContext context) {
+    final totalLiters = _getMonthlyLiters();
+    final subtotal = _getMonthlyBill();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final monthName = DateFormat('MMMM YYYY').format(DateTime(_selectedYear, _selectedMonth, 1));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Select Invoice Month', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: AppTheme.glassCard(context),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<int>(
+                    value: _selectedMonth,
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    items: List.generate(12, (index) => index + 1).map((m) {
+                      return DropdownMenuItem<int>(value: m, child: Text(DateFormat('MMMM').format(DateTime(2020, m, 1))));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _selectedMonth = val;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const VerticalDivider(width: 24),
+                Expanded(
+                  child: DropdownButton<int>(
+                    value: _selectedYear,
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    items: [2024, 2025, 2026, 2027].map((y) {
+                      return DropdownMenuItem<int>(value: y, child: Text(y.toString()));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _selectedYear = val;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('Monthly Summary - $monthName', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: AppTheme.glassCard(context),
+            child: Column(
+              children: [
+                _buildInvoiceItemRow('Total Liters Delivered', '${totalLiters.toStringAsFixed(1)} Liters', AppTheme.secondary),
+                const Divider(height: 24),
+                _buildInvoiceItemRow('Standard Rate per Liter', 'Rs. ${_activeCustomer.rate.toStringAsFixed(0)} / L', isDark ? AppTheme.textPrimaryDark : AppTheme.textPrimaryLight),
+                const Divider(height: 24),
+                _buildInvoiceItemRow("This Month's Bill", 'Rs. ${subtotal.toStringAsFixed(0)}', AppTheme.statusUnpaid),
+                const Divider(height: 24),
+                _buildInvoiceItemRow('Previous Balance (Before $monthName)', 'Rs. ${_getPreviousUnpaidBalance().toStringAsFixed(0)}', AppTheme.statusPartial),
+                const Divider(height: 24),
+                _buildInvoiceItemRow('Payments in $monthName', '- Rs. ${_getPaymentsForMonth().toStringAsFixed(0)}', AppTheme.statusPaid),
+                const Divider(height: 24),
+                _buildInvoiceItemRow('Total Due (This Month)', 'Rs. ${_getMonthlyBalance().toStringAsFixed(0)}', _getMonthlyBalance() > 0.01 ? AppTheme.statusUnpaid : AppTheme.statusPaid),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: totalLiters == 0 ? null : () {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF preview is ready in this frontend mock.')));
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('Download PDF'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, minimumSize: const Size(0, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: totalLiters == 0 ? null : () {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp invoice preview is ready in this frontend mock.')));
+                  },
+                  icon: const Icon(Icons.share),
+                  label: const Text('WhatsApp Bill'),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, minimumSize: const Size(0, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                ),
+              ),
+            ],
+          ),
+          if (totalLiters == 0) ...[
+            const SizedBox(height: 12),
+            const Center(child: Text('No milk deliveries logged in this month range.', style: TextStyle(fontSize: 12, color: AppTheme.statusPaused, fontStyle: FontStyle.italic))),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceItemRow(String label, String value, Color valueColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: valueColor)),
+      ],
+    );
+  }
+
+  void _showEditCustomerDialog(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    String name = _activeCustomer.name;
+    String phone = _activeCustomer.phone;
+    String address = _activeCustomer.address;
+    double defaultQuantity = _activeCustomer.defaultQuantity;
+    double rate = _activeCustomer.rate;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Edit Customer Profile', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                TextFormField(initialValue: name, decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person)), validator: (val) => val == null || val.trim().isEmpty ? 'Name is required' : null, onSaved: (val) => name = val!.trim()),
+                const SizedBox(height: 12),
+                TextFormField(initialValue: phone, decoration: const InputDecoration(labelText: 'Phone Number', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone, validator: (val) => val == null || val.trim().isEmpty ? 'Phone number is required' : null, onSaved: (val) => phone = val!.trim()),
+                const SizedBox(height: 12),
+                TextFormField(initialValue: address, decoration: const InputDecoration(labelText: 'Address', prefixIcon: Icon(Icons.home)), validator: (val) => val == null || val.trim().isEmpty ? 'Address is required' : null, onSaved: (val) => address = val!.trim()),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: TextFormField(initialValue: defaultQuantity.toString(), decoration: const InputDecoration(labelText: 'Daily Milk (L)', suffixText: 'L'), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: (val) { final d = double.tryParse(val ?? ''); return (d == null || d <= 0) ? 'Must be > 0' : null; }, onSaved: (val) => defaultQuantity = double.parse(val!))),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextFormField(initialValue: rate.toString(), decoration: const InputDecoration(labelText: 'Rate per L', suffixText: 'Rs'), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: (val) { final r = double.tryParse(val ?? ''); return (r == null || r <= 0) ? 'Must be > 0' : null; }, onSaved: (val) => rate = double.parse(val!))),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (formKey.currentState!.validate()) {
+                          formKey.currentState!.save();
+                          setState(() {
+                            _activeCustomer = _activeCustomer.copyWith(name: name, phone: phone, address: address, defaultQuantity: defaultQuantity, rate: rate);
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text('Save Changes'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmDeleteCustomer(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer Account'),
+        content: Text('Are you sure you want to delete ${_activeCustomer.name}? This will remove all their payment records, schedules, and custom overrides forever!'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted customer successfully!'), backgroundColor: AppTheme.statusUnpaid));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusUnpaid),
+            child: const Text('Delete Account'),
+          ),
+        ],
+      ),
+    );
+  }
 }
