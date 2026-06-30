@@ -262,7 +262,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
       ),
     );
   }
-  //overview tab
+  //Overview Tab
   Widget _buildOverviewTab(BuildContext context, double remaining, String status, Color badgeColor) {
     final totalBill = _getTotalBill();
     final totalPaid = _getTotalPaid();
@@ -445,6 +445,340 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> with Single
           ],
         ),
       ],
+    );
+  }
+
+  //Delivery Log Tab
+  Widget _buildDeliveryLogTab(BuildContext context) {
+    final now = DateTime.now();
+    final join = _activeCustomer.joinDate;
+
+    if (now.isBefore(join)) {
+      return const Center(child: Text('Join Date is in the future. No logs recorded yet.'));
+    }
+
+    final int daysCount = now.difference(join).inDays + 1;
+    final List<DateTime> dates = List.generate(
+      daysCount,
+      (i) => DateTime(now.year, now.month, now.day).subtract(Duration(days: i)),
+    );
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: dates.length,
+      itemBuilder: (context, index) {
+        final date = dates[index];
+        final qty = _getQuantityForDate(date);
+        final rate = _activeCustomer.rate;
+        final cost = qty * rate;
+        final isPaused = _activeCustomer.isPausedOn(date);
+        final hasOverride = _hasOverride(date);
+
+        Widget statusBadge;
+        Color amountColor = Colors.white;
+
+        if (isPaused) {
+          statusBadge = const Text('PAUSED', style: TextStyle(color: AppTheme.statusPaused, fontSize: 10, fontWeight: FontWeight.bold));
+          amountColor = AppTheme.statusPaused;
+        } else if (hasOverride) {
+          statusBadge = const Text('OVERRIDDEN', style: TextStyle(color: AppTheme.statusPartial, fontSize: 10, fontWeight: FontWeight.bold));
+          amountColor = AppTheme.statusPartial;
+        } else {
+          statusBadge = const Text('DEFAULT', style: TextStyle(color: AppTheme.statusPaid, fontSize: 10, fontWeight: FontWeight.bold));
+          amountColor = AppTheme.statusPaid;
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: AppTheme.glassCard(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(DateFormat('EEEE, d MMMM').format(date), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        statusBadge,
+                        const SizedBox(width: 8),
+                        Text('•  Rs. ${rate.toStringAsFixed(0)}/L'),
+                      ],
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('${qty.toStringAsFixed(1)} Liters', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: amountColor)),
+                        Text('Rs. ${cost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 18),
+                      onPressed: isPaused ? null : () => _showEditOverrideDialog(context, date, qty),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditOverrideDialog(BuildContext context, DateTime date, double currentQty) {
+    final controller = TextEditingController(text: currentQty.toString());
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit ${DateFormat('d MMMM').format(date)} Delivery'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Set milk delivered for ${_activeCustomer.name} on this date:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Quantity (Liters)', suffixText: 'L'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              _recordOverride(date, _activeCustomer.defaultQuantity);
+              Navigator.pop(context);
+            },
+            child: const Text('Reset Default'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final double? val = double.tryParse(controller.text);
+              if (val != null && val >= 0) {
+                _recordOverride(date, val);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  //Payment Tab
+  Widget _buildPaymentsTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: _payments.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.payments_outlined, size: 64, color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight),
+                  const SizedBox(height: 12),
+                  const Text('No payments logged for this customer yet.'),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _payments.length,
+              itemBuilder: (context, index) {
+                final payment = _payments[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: AppTheme.glassCard(context),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: CircleAvatar(
+                      backgroundColor: AppTheme.statusPaid,
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.arrow_downward),
+                    ),
+                    title: Text('Rs. ${payment.amount.toStringAsFixed(0)} Paid', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.statusPaid)),
+                    subtitle: Text('${DateFormat('d MMMM y').format(payment.date)}  •  ${payment.notes.isEmpty ? 'Cash payment' : payment.notes}', style: const TextStyle(fontSize: 12)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: AppTheme.statusUnpaid, size: 20),
+                      onPressed: () => _confirmDeletePayment(context, payment),
+                    ),
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'payment_fab',
+        onPressed: () => _showAddPaymentDialog(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Payment'),
+      ),
+    );
+  }
+
+  void _showAddPaymentDialog(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    double amount = 0.0;
+    String notes = '';
+    DateTime payDate = DateTime.now();
+    int paymentMonth = DateTime.now().month;
+    int paymentYear = DateTime.now().year;
+
+    final payDateController = TextEditingController(text: DateFormat('d MMMM y').format(payDate));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Record Payment'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Amount Paid (Rs.)', prefixIcon: Icon(Icons.currency_exchange)),
+                    keyboardType: TextInputType.number,
+                    validator: (val) {
+                      final a = double.tryParse(val ?? '');
+                      return (a == null || a <= 0) ? 'Must be > 0' : null;
+                    },
+                    onSaved: (val) => amount = double.parse(val!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Payment Notes', prefixIcon: Icon(Icons.notes), hintText: 'e.g. Cash, Bank Transfer'),
+                    onSaved: (val) => notes = val ?? '',
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: payDateController,
+                    readOnly: true,
+                    decoration: const InputDecoration(labelText: 'Payment Date', prefixIcon: Icon(Icons.calendar_month)),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: payDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) => Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: AppTheme.primary,
+                              onPrimary: Colors.white,
+                              surface: AppTheme.cardDark,
+                              onSurface: Colors.white,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) {
+                        setModalState(() {
+                          payDate = picked;
+                          payDateController.text = DateFormat('d MMMM y').format(payDate);
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Which month is this payment for?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButton<int>(
+                          value: paymentMonth,
+                          isExpanded: true,
+                          items: List.generate(12, (index) => index + 1).map((m) {
+                            return DropdownMenuItem<int>(value: m, child: Text(DateFormat('MMMM').format(DateTime(2020, m, 1))));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() {
+                                paymentMonth = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButton<int>(
+                          value: paymentYear,
+                          isExpanded: true,
+                          items: [2024, 2025, 2026, 2027].map((y) {
+                            return DropdownMenuItem<int>(value: y, child: Text(y.toString()));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() {
+                                paymentYear = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  formKey.currentState!.save();
+                  setState(() {
+                    _payments.add(_MockPayment(id: DateTime.now().millisecondsSinceEpoch.toString(), amount: amount, date: payDate, notes: notes, paymentMonth: paymentMonth, paymentYear: paymentYear));
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Record'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeletePayment(BuildContext context, _MockPayment payment) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Payment'),
+        content: Text('Are you sure you want to delete this payment of Rs. ${payment.amount.toStringAsFixed(0)}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _payments.remove(payment);
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.statusUnpaid),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
