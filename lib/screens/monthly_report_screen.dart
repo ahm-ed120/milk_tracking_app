@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../models/customer.dart';
+import '../providers/milk_provider.dart';
 import '../theme/app_theme.dart';
+import 'customer_detail_screen.dart';
 
 class MonthlyReportScreen extends StatefulWidget {
   const MonthlyReportScreen({super.key});
@@ -9,51 +13,48 @@ class MonthlyReportScreen extends StatefulWidget {
   State<MonthlyReportScreen> createState() => _MonthlyReportScreenState();
 }
 
-class _MockCustomer {
-  final String id;
-  final String name;
-  final double liters;
-  final double billed;
-  final double paid;
-
-  const _MockCustomer({
-    required this.id,
-    required this.name,
-    required this.liters,
-    required this.billed,
-    required this.paid,
-  });
-}
-
 class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   int _selectedYear = DateTime.now().year;
   int _selectedMonth = DateTime.now().month;
 
-  final List<_MockCustomer> _customers = const [
-    _MockCustomer(id: '1', name: 'Asha Khan', liters: 48.5, billed: 4800, paid: 3200),
-    _MockCustomer(id: '2', name: 'Ravi Sharma', liters: 31.0, billed: 3100, paid: 3100),
-    _MockCustomer(id: '3', name: 'Neha Verma', liters: 54.0, billed: 5400, paid: 2500),
-    _MockCustomer(id: '4', name: 'Kiran Patel', liters: 27.5, billed: 2750, paid: 2750),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final milkProvider = Provider.of<MilkProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (milkProvider.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final String monthName = DateFormat('MMMM yyyy').format(DateTime(_selectedYear, _selectedMonth, 1));
 
+    // MATH AGGREGATIONS FOR THE SELECT MONTH
     double totalLiters = 0.0;
     double totalBilled = 0.0;
     double totalCollected = 0.0;
 
-    final breakdownList = <_MockCustomer>[];
+    // List of customer statistics for display
+    final List<Map<String, dynamic>> breakdownList = [];
 
-    for (final customer in _customers) {
-      totalLiters += customer.liters;
-      totalBilled += customer.billed;
-      totalCollected += customer.paid;
+    for (final customer in milkProvider.customers) {
+      final liters = milkProvider.getDeliveredLitersForCustomerForMonth(customer, _selectedYear, _selectedMonth);
+      final bill = milkProvider.getBillForCustomerForMonth(customer, _selectedYear, _selectedMonth);
+      final customerMonthPayments = milkProvider.getTotalPaidForMonth(customer.id, _selectedYear, _selectedMonth);
 
-      if (customer.liters > 0 || customer.paid > 0) {
-        breakdownList.add(customer);
+      totalLiters += liters;
+      totalBilled += bill;
+      totalCollected += customerMonthPayments;
+
+      if (liters > 0 || customerMonthPayments > 0) {
+        breakdownList.add({
+          'customer': customer,
+          'liters': liters,
+          'bill': bill,
+          'paid': customerMonthPayments,
+          'balance': bill - customerMonthPayments,
+        });
       }
     }
 
@@ -61,7 +62,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Monthly Ledgers', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Monthly Ledgers", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -69,6 +70,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // MONTH/YEAR DROP DOWN ACCORDION
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -122,6 +124,8 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // LEDGER ANALYTICS SUMMARIES
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: GridView.count(
@@ -132,25 +136,29 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 children: [
-                  _buildStatsBox('Month Liters Billed', '${totalLiters.toStringAsFixed(1)} L', AppTheme.secondary),
-                  _buildStatsBox('Total Billed Revenue', 'Rs. ${totalBilled.toStringAsFixed(0)}', AppTheme.statusUnpaid),
-                  _buildStatsBox('Collections Received', 'Rs. ${totalCollected.toStringAsFixed(0)}', AppTheme.statusPaid),
-                  _buildStatsBox('Collections Pending', 'Rs. ${pendingCollection.toStringAsFixed(0)}', pendingCollection > 0 ? AppTheme.statusPartial : AppTheme.statusPaid),
+                  _buildStatsBox("Month Liters Billed", "${totalLiters.toStringAsFixed(1)} L", AppTheme.secondary),
+                  _buildStatsBox("Total Billed Revenue", "Rs. ${totalBilled.toStringAsFixed(0)}", AppTheme.statusUnpaid),
+                  _buildStatsBox("Collections Received", "Rs. ${totalCollected.toStringAsFixed(0)}", AppTheme.statusPaid),
+                  _buildStatsBox("Collections Pending", "Rs. ${pendingCollection.toStringAsFixed(0)}", pendingCollection > 0 ? AppTheme.statusPartial : AppTheme.statusPaid),
                 ],
               ),
             ),
             const SizedBox(height: 24),
+
+            // BREAKDOWN GRID HEADER
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Customer Details - $monthName',
+                  "Customer Details - $monthName",
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
             const SizedBox(height: 10),
+
+            // CUSTOMER BREAKDOWNS
             Expanded(
               child: breakdownList.isEmpty
                   ? Center(
@@ -159,7 +167,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                         children: [
                           Icon(Icons.receipt_long, size: 64, color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight),
                           const SizedBox(height: 12),
-                          Text('No logs recorded for $monthName.'),
+                          Text("No logs recorded for $monthName."),
                         ],
                       ),
                     )
@@ -167,8 +175,12 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
                       itemCount: breakdownList.length,
                       itemBuilder: (context, index) {
-                        final customer = breakdownList[index];
-                        final balance = customer.billed - customer.paid;
+                        final item = breakdownList[index];
+                        final customer = item['customer'] as Customer;
+                        final liters = item['liters'] as double;
+                        final bill = item['bill'] as double;
+                        final paid = item['paid'] as double;
+                        final balance = item['balance'] as double;
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -187,7 +199,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '${customer.liters.toStringAsFixed(1)} L',
+                                  "${liters.toStringAsFixed(1)} L",
                                   style: const TextStyle(fontWeight: FontWeight.w900),
                                 ),
                               ],
@@ -197,10 +209,10 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('Billed: Rs. ${customer.billed.toStringAsFixed(0)}'),
-                                  Text('Paid: Rs. ${customer.paid.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.statusPaid)),
+                                  Text("Billed: Rs. ${bill.toStringAsFixed(0)}"),
+                                  Text("Paid: Rs. ${paid.toStringAsFixed(0)}", style: const TextStyle(color: AppTheme.statusPaid)),
                                   Text(
-                                    'Bal: Rs. ${balance.toStringAsFixed(0)}',
+                                    "Bal: Rs. ${balance.toStringAsFixed(0)}",
                                     style: TextStyle(
                                       color: balance > 0 ? AppTheme.statusUnpaid : AppTheme.statusPaid,
                                       fontWeight: FontWeight.bold,
@@ -209,6 +221,14 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                                 ],
                               ),
                             ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CustomerDetailScreen(customer: customer),
+                                ),
+                              );
+                            },
                           ),
                         );
                       },
