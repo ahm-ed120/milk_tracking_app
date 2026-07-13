@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../providers/milk_provider.dart';
+import '../models/customer.dart';
 import '../theme/app_theme.dart';
 import 'customer_detail_screen.dart';
 
@@ -10,68 +13,9 @@ class CustomerListScreen extends StatefulWidget {
   State<CustomerListScreen> createState() => _CustomerListScreenState();
 }
 
-class _MockCustomer {
-  final String id;
-  final String name;
-  final String phone;
-  final String address;
-  final double defaultQuantity;
-  final double rate;
-  final double balance;
-
-  const _MockCustomer({
-    required this.id,
-    required this.name,
-    required this.phone,
-    required this.address,
-    required this.defaultQuantity,
-    required this.rate,
-    required this.balance,
-  });
-}
-
 class _CustomerListScreenState extends State<CustomerListScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-
-  final List<_MockCustomer> _customers = const [
-    _MockCustomer(
-      id: '1',
-      name: 'Asha Khan',
-      phone: '9876543210',
-      address: 'Main Road',
-      defaultQuantity: 2.0,
-      rate: 220,
-      balance: 1800,
-    ),
-    _MockCustomer(
-      id: '2',
-      name: 'Ravi Sharma',
-      phone: '9123456780',
-      address: 'Park Street',
-      defaultQuantity: 1.5,
-      rate: 220,
-      balance: 0,
-    ),
-    _MockCustomer(
-      id: '3',
-      name: 'Neha Verma',
-      phone: '9988776655',
-      address: 'Lake View',
-      defaultQuantity: 3.0,
-      rate: 220,
-      balance: 1100,
-    ),
-    _MockCustomer(
-      id: '4',
-      name: 'Kiran Patel',
-      phone: '9765432109',
-      address: 'Old Town',
-      defaultQuantity: 2.5,
-      rate: 220,
-      balance: 0,
-    ),
-  ];
 
   @override
   void dispose() {
@@ -81,9 +25,16 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final milkProvider = Provider.of<MilkProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final filteredCustomers = _customers.where((customer) {
+    if (milkProvider.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final filteredCustomers = milkProvider.customers.where((customer) {
       final nameMatches = customer.name.toLowerCase().contains(_searchQuery.toLowerCase());
       final phoneMatches = customer.phone.contains(_searchQuery);
       return nameMatches || phoneMatches;
@@ -91,7 +42,10 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Customers', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Customers",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -99,33 +53,42 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Search Bar & Customer Count Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                  });
-                },
-                decoration: InputDecoration(
-                  hintText: 'Search customer...',
-                  prefixIcon: const Icon(Icons.search),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                            });
-                          },
-                        )
-                      : null,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Search customer...",
+                        prefixIcon: const Icon(Icons.search),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+
+            // Customer List
             Expanded(
               child: filteredCustomers.isEmpty
                   ? Center(
@@ -139,9 +102,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            _searchQuery.isNotEmpty
-                                ? 'No customers found'
-                                : 'No customers added yet!\nTap the + button to add one.',
+                            _searchQuery.isNotEmpty 
+                                ? "No customers found"
+                                : "No customers added yet!\nTap the + button to add one.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
@@ -156,7 +119,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                       itemCount: filteredCustomers.length,
                       itemBuilder: (context, index) {
                         final customer = filteredCustomers[index];
-                        return _buildCustomerItem(context, customer);
+                        return _buildCustomerItem(context, customer, milkProvider);
                       },
                     ),
             ),
@@ -164,19 +127,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddCustomerDialog(context),
+        onPressed: () => _showAddCustomerDialog(context, milkProvider),
         child: const Icon(Icons.person_add),
       ),
     );
   }
 
-  Widget _buildCustomerItem(BuildContext context, _MockCustomer customer) {
-    final remaining = customer.balance;
-    final status = remaining > 1000
-        ? 'Unpaid'
-        : remaining > 0
-            ? 'Partial'
-            : 'Paid';
+  // Builder for customer cards
+  Widget _buildCustomerItem(
+    BuildContext context,
+    Customer customer,
+    MilkProvider provider,
+  ) {
+    final remaining = provider.getRemainingBalanceForCustomer(customer);
+    final status = provider.getPaymentStatusForCustomer(customer);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color badgeColor;
@@ -200,9 +164,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => CustomerDetailScreen(
-                  
-                ),
+                builder: (context) => CustomerDetailScreen(customer: customer),
               ),
             );
           },
@@ -210,6 +172,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Row(
               children: [
+                // Avatar representation
                 Container(
                   width: 48,
                   height: 48,
@@ -229,6 +192,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
+
+                // Info block
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,12 +212,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // Status badge
                           _buildBadge(status, badgeColor),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${customer.phone}  •  ${customer.address}',
+                        "${customer.phone}  •  ${customer.address}",
                         style: Theme.of(context).textTheme.bodySmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -261,24 +227,24 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.water_drop_outlined,
-                            size: 14,
-                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                            Icons.water_drop_outlined, 
+                            size: 14, 
+                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            '${customer.defaultQuantity}L',
+                            "${customer.defaultQuantity}L",
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(width: 12),
                           Icon(
-                            Icons.currency_exchange_outlined,
-                            size: 14,
-                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+                            Icons.currency_exchange_outlined, 
+                            size: 14, 
+                            color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            'Rs. ${customer.rate.toStringAsFixed(0)}/L',
+                            "Rs. ${customer.rate.toStringAsFixed(0)}/L",
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -286,20 +252,30 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(width: 8),
+
+                // Balance block
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('Balance', style: TextStyle(fontSize: 10)),
+                    const Text(
+                      "Balance",
+                      style: TextStyle(fontSize: 10),
+                    ),
                     Text(
-                      'Rs. ${remaining.toStringAsFixed(0)}',
+                      "Rs. ${remaining.toStringAsFixed(0)}",
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                         color: remaining > 0 ? AppTheme.statusUnpaid : AppTheme.statusPaid,
                       ),
                     ),
-                    const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
                   ],
                 ),
               ],
@@ -320,12 +296,17 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  void _showAddCustomerDialog(BuildContext context) {
+  // Dialog to Add a Customer
+  void _showAddCustomerDialog(BuildContext context, MilkProvider provider) {
     final formKey = GlobalKey<FormState>();
     String name = '';
     String phone = '';
@@ -334,7 +315,9 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     double rate = 220.0;
     DateTime joinDate = DateTime.now();
 
-    final dateController = TextEditingController(text: DateFormat('d MMMM y').format(joinDate));
+    final dateController = TextEditingController(
+      text: DateFormat('d MMMM y').format(joinDate)
+    );
 
     showModalBottomSheet(
       context: context,
@@ -343,7 +326,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+              padding: EdgeInsets.fromLTRB(
+                24, 
+                24, 
+                24, 
+                MediaQuery.of(context).viewInsets.bottom + 24
+              ),
               child: Form(
                 key: formKey,
                 child: SingleChildScrollView(
@@ -352,35 +340,35 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Add Customer',
+                        "Add Customer",
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         decoration: const InputDecoration(
-                          labelText: 'Full Name',
+                          labelText: "Full Name",
                           prefixIcon: Icon(Icons.person),
                         ),
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Name is required' : null,
+                        validator: (val) => val == null || val.trim().isEmpty ? "Name is required" : null,
                         onSaved: (val) => name = val!.trim(),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         decoration: const InputDecoration(
-                          labelText: 'Phone Number',
+                          labelText: "Phone Number",
                           prefixIcon: Icon(Icons.phone),
                         ),
                         keyboardType: TextInputType.phone,
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Phone number is required' : null,
+                        validator: (val) => val == null || val.trim().isEmpty ? "Phone number is required" : null,
                         onSaved: (val) => phone = val!.trim(),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         decoration: const InputDecoration(
-                          labelText: 'Address',
+                          labelText: "Address",
                           prefixIcon: Icon(Icons.home),
                         ),
-                        validator: (val) => val == null || val.trim().isEmpty ? 'Address is required' : null,
+                        validator: (val) => val == null || val.trim().isEmpty ? "Address is required" : null,
                         onSaved: (val) => address = val!.trim(),
                       ),
                       const SizedBox(height: 12),
@@ -389,15 +377,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           Expanded(
                             child: TextFormField(
                               decoration: const InputDecoration(
-                                labelText: 'Daily Milk (Liters)',
+                                labelText: "Daily Milk (Liters)",
                                 prefixIcon: Icon(Icons.water_drop),
-                                suffixText: 'L',
+                                suffixText: "L",
                               ),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              initialValue: '1.0',
+                              initialValue: "1.0",
                               validator: (val) {
                                 final d = double.tryParse(val ?? '');
-                                return (d == null || d <= 0) ? 'Must be > 0' : null;
+                                return (d == null || d <= 0) ? "Must be > 0" : null;
                               },
                               onSaved: (val) => defaultQuantity = double.parse(val!),
                             ),
@@ -406,15 +394,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           Expanded(
                             child: TextFormField(
                               decoration: const InputDecoration(
-                                labelText: 'Rate per Liter',
+                                labelText: "Rate per Liter",
                                 prefixIcon: Icon(Icons.currency_exchange),
-                                suffixText: 'Rs',
+                                suffixText: "Rs",
                               ),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              initialValue: '220',
+                              initialValue: "220",
                               validator: (val) {
                                 final r = double.tryParse(val ?? '');
-                                return (r == null || r <= 0) ? 'Must be > 0' : null;
+                                return (r == null || r <= 0) ? "Must be > 0" : null;
                               },
                               onSaved: (val) => rate = double.parse(val!),
                             ),
@@ -422,11 +410,12 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      // Join Date Picker Form field
                       TextFormField(
                         controller: dateController,
                         readOnly: true,
                         decoration: const InputDecoration(
-                          labelText: 'Join Date (Start of Billing)',
+                          labelText: "Join Date (Start of Billing)",
                           prefixIcon: Icon(Icons.calendar_month),
                         ),
                         onTap: () async {
@@ -461,33 +450,31 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                         children: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
+                            child: const Text("Cancel"),
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton(
                             onPressed: () {
                               if (formKey.currentState!.validate()) {
                                 formKey.currentState!.save();
-                                setState(() {
-                                  _customers.add(
-                                    _MockCustomer(
-                                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                      name: name,
-                                      phone: phone,
-                                      address: address,
-                                      defaultQuantity: defaultQuantity,
-                                      rate: rate,
-                                      balance: 0,
-                                    ),
-                                  );
-                                });
+                                provider.addCustomer(
+                                  name: name,
+                                  phone: phone,
+                                  address: address,
+                                  defaultQuantity: defaultQuantity,
+                                  rate: rate,
+                                  joinDate: joinDate,
+                                );
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Added Customer $name successfully!')),
+                                  SnackBar(
+                                    content: Text("Added Customer $name successfully!"),
+                                    backgroundColor: AppTheme.statusPaid,
+                                  ),
                                 );
                               }
                             },
-                            child: const Text('Create Customer'),
+                            child: const Text("Create Customer"),
                           ),
                         ],
                       ),
